@@ -29,9 +29,22 @@
 		E1149CC32F5DA09900DD49DD /* DeepScanUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DeepScanUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		E1D564E12F74694700BDF0F9 /* Exceptions for "DeepScan" folder in "DeepScan" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = E1149CA92F5DA09700DD49DD /* DeepScan */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E1149CAC2F5DA09700DD49DD /* DeepScan */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				E1D564E12F74694700BDF0F9 /* Exceptions for "DeepScan" folder in "DeepScan" target */,
+			);
 			path = DeepScan;
 			sourceTree = "<group>";
 		};
@@ -398,6 +411,9 @@
 				DEVELOPMENT_TEAM = 355FYVXC7F;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DeepScan/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "DeepScan needs camera access to identify fish underwater";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "DeepScan needs photo access to analyze your underwater photos";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -430,6 +446,9 @@
 				DEVELOPMENT_TEAM = 355FYVXC7F;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DeepScan/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "DeepScan needs camera access to identify fish underwater";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "DeepScan needs photo access to analyze your underwater photos";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;

@@ -1,64 +1,68 @@
 import SwiftUI
+import PhotosUI
 
 struct HomeView: View {
 
-    // @State is a property wrapper - it tells SwiftUI to re-render
-    // the view whenever this variable changes.
-    // Think of it like a reactive variable - similar to how in Java
-    // you'd notify observers when state changes, but here it's automatic.
+    // MARK: - State
+
+    // Controls whether the camera sheet is shown
     @State private var showCamera = false
-    @State private var showGallery = false
+
+    // The photo captured by camera OR picked from gallery
+    // Optional because no photo exists until the user picks one
+    @State private var capturedImage: UIImage? = nil
+
+    // Controls whether the photo preview sheet is shown
+    @State private var showPreview = false
+
+    // PhotosPicker selection - this is a special type from the PhotosUI framework
+    // It represents a selected item from the photo library (not the image itself yet)
+    @State private var galleryItem: PhotosPickerItem? = nil
 
     var body: some View {
-        // NavigationStack allows us to push new screens on top of this one.
-        // It's the container that enables navigation in the app.
         NavigationStack {
-
-            // ZStack layers views on top of each other.
-            // We use it here to place a background behind everything.
             ZStack {
-
-                // Background color - fills the whole screen
                 Color(.systemBackground)
-                    .ignoresSafeArea() // extends behind status bar / home indicator
+                    .ignoresSafeArea()
 
-                // VStack arranges children vertically with 40pt spacing
                 VStack(spacing: 40) {
 
                     // MARK: - Header
-                    // MARK is just a comment marker to organize code sections
-                    // (like a bookmark - visible in Xcode's jump bar)
                     VStack(spacing: 8) {
+                        Text("🤿")
+                            .font(.system(size: 60))
+
                         Text("DeepScan")
-                            .font(.largeTitle)   // predefined text style
+                            .font(.largeTitle)
                             .fontWeight(.bold)
 
                         Text("Identify fish while snorkeling")
                             .font(.subheadline)
-                            .foregroundStyle(.secondary) // grey color
+                            .foregroundStyle(.secondary)
                     }
 
                     // MARK: - Buttons
                     VStack(spacing: 16) {
 
-                        // Button takes two arguments:
-                        // 1. action: what happens when tapped (a closure, like a lambda in Java)
-                        // 2. label: what the button looks like
+                        // Camera button - opens CameraView as a full screen cover
                         Button(action: {
-                            showCamera = true // this triggers a re-render automatically
+                            showCamera = true
                         }) {
-                            // This is the button's visual appearance
                             Label("Take Photo", systemImage: "camera.fill")
-                                .frame(maxWidth: .infinity) // stretch full width
+                                .frame(maxWidth: .infinity)
                                 .padding()
                                 .background(Color.blue)
                                 .foregroundStyle(.white)
                                 .clipShape(RoundedRectangle(cornerRadius: 14))
                         }
 
-                        Button(action: {
-                            showGallery = true
-                        }) {
+                        // Gallery button - PhotosPicker is a native SwiftUI component
+                        // It doesn't need a separate sheet - it's built into the label
+                        // We wrap the button style around it using a label
+                        PhotosPicker(
+                            selection: $galleryItem,
+                            matching: .images // only show photos, not videos
+                        ) {
                             Label("Pick from Library", systemImage: "photo.fill")
                                 .frame(maxWidth: .infinity)
                                 .padding()
@@ -67,12 +71,9 @@ struct HomeView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 14))
                         }
                     }
-                    .padding(.horizontal, 32) // left/right margin
+                    .padding(.horizontal, 32)
 
                     // MARK: - Diary Navigation
-                    // NavigationLink pushes a new screen when tapped.
-                    // destination: the screen to navigate to
-                    // label: what it looks like
                     NavigationLink(destination: Text("Diary coming soon")) {
                         Label("My Snorkel Diary", systemImage: "book.fill")
                             .foregroundStyle(.blue)
@@ -80,11 +81,55 @@ struct HomeView: View {
                 }
             }
         }
+
+        // MARK: - Camera Sheet
+        // .fullScreenCover is like .sheet but covers the entire screen.
+        // Better for camera since we want the live preview edge to edge.
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraView(capturedImage: $capturedImage)
+                // Watch for a captured image - when camera delivers one, show preview
+                .onChange(of: capturedImage) { _, newImage in
+                    if newImage != nil {
+                        showCamera = false
+                        showPreview = true
+                    }
+                }
+        }
+
+        // MARK: - Gallery Item Handler
+        // When the user picks a photo from the library, galleryItem gets set.
+        // But galleryItem is just a REFERENCE to the photo, not the image itself.
+        // We need to load the actual image data asynchronously.
+        .onChange(of: galleryItem) { _, newItem in
+            Task {
+                // loadTransferable loads the actual image data from the photo library.
+                // It's async because the photo might need to be downloaded from iCloud.
+                if let data = try? await newItem?.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    capturedImage = image
+                    showPreview = true
+                }
+            }
+        }
+
+        // MARK: - Preview Sheet
+        .sheet(isPresented: $showPreview) {
+            if let image = capturedImage {
+                PhotoPreviewView(
+                    image: image,
+                    onRetake: {
+                        showPreview = false
+                        capturedImage = nil
+                        galleryItem = nil
+                        showCamera = true
+                    }
+                )
+                .ignoresSafeArea()
+            }
+        }
     }
 }
 
-// This is a Preview - only exists in development, never ships in the app.
-// It lets you see the UI in Xcode's canvas without running the simulator.
 #Preview {
     HomeView()
 }
