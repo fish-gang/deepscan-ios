@@ -1,0 +1,17 @@
+{
+  "MLModelVersionStringKey" : "--",
+  "MLModelDescriptionKey" : "Tropical reef fish classifier — 14 classes, mobilenet_v3_large backbone, trained on fish-gang\/deepscan-dataset v1.0",
+  "MLModelCreatorDefinedKey" : {
+    "backbone" : "mobilenet_v3_large",
+    "com.github.apple.coremltools.source" : "torch==2.10.0+cu128",
+    "com.github.apple.coremltools.conversion_date" : "2026-04-23",
+    "com.github.apple.coremltools.source_dialect" : "TorchScript",
+    "com.github.apple.coremltools.version" : "9.0",
+    "checkpoint" : "best-epoch=15-val_acc=0.933.ckpt",
+    "image_size" : "224",
+    "dataset_revision" : "v1.0",
+    "num_classes" : "14"
+  },
+  "MLModelAuthorKey" : "--",
+  "MLModelLicenseKey" : "--"
+}

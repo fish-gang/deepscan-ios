@@ -1,23 +1,20 @@
 import SwiftUI
+import SwiftData
 import PhotosUI
 
 struct HomeView: View {
+    @Environment(\.modelContext) private var modelContext
 
     // MARK: - State
 
-    // Controls whether the camera sheet is shown
     @State private var showCamera = false
-
-    // The photo captured by camera OR picked from gallery
-    // Optional because no photo exists until the user picks one
     @State private var capturedImage: UIImage? = nil
-
-    // Controls whether the photo preview sheet is shown
-    @State private var showPreview = false
-
-    // PhotosPicker selection - this is a special type from the PhotosUI framework
-    // It represents a selected item from the photo library (not the image itself yet)
     @State private var galleryItem: PhotosPickerItem? = nil
+
+    // Each new photo gets a fresh CapturedImage with a unique id.
+    // navigationDestination(item:) sees a different item every time and
+    // creates a new PhotoPreviewView — preventing stale view reuse.
+    @State private var previewImage: CapturedImage? = nil
 
     var body: some View {
         NavigationStack {
@@ -44,10 +41,7 @@ struct HomeView: View {
                     // MARK: - Buttons
                     VStack(spacing: 16) {
 
-                        // Camera button - opens CameraView as a full screen cover
-                        Button(action: {
-                            showCamera = true
-                        }) {
+                        Button(action: { showCamera = true }) {
                             Label("Take Photo", systemImage: "camera.fill")
                                 .frame(maxWidth: .infinity)
                                 .padding()
@@ -56,13 +50,7 @@ struct HomeView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 14))
                         }
 
-                        // Gallery button - PhotosPicker is a native SwiftUI component
-                        // It doesn't need a separate sheet - it's built into the label
-                        // We wrap the button style around it using a label
-                        PhotosPicker(
-                            selection: $galleryItem,
-                            matching: .images // only show photos, not videos
-                        ) {
+                        PhotosPicker(selection: $galleryItem, matching: .images) {
                             Label("Pick from Library", systemImage: "photo.fill")
                                 .frame(maxWidth: .infinity)
                                 .padding()
@@ -74,62 +62,65 @@ struct HomeView: View {
                     .padding(.horizontal, 32)
 
                     // MARK: - Diary Navigation
-                    NavigationLink(destination: Text("Diary coming soon")) {
+                    NavigationLink(destination: DiaryView()) {
                         Label("My Snorkel Diary", systemImage: "book.fill")
                             .foregroundStyle(.blue)
                     }
                 }
             }
-        }
 
-        // MARK: - Camera Sheet
-        // .fullScreenCover is like .sheet but covers the entire screen.
-        // Better for camera since we want the live preview edge to edge.
-        .fullScreenCover(isPresented: $showCamera) {
-            CameraView(capturedImage: $capturedImage)
-                // Watch for a captured image - when camera delivers one, show preview
-                .onChange(of: capturedImage) { _, newImage in
-                    if newImage != nil {
-                        showCamera = false
-                        showPreview = true
+            // MARK: - Navigation to Preview
+            // item: variant guarantees a fresh PhotoPreviewView for each unique
+            // CapturedImage — SwiftUI keys the destination on the item's identity.
+            .navigationDestination(item: $previewImage) { captured in
+                PhotoPreviewView(
+                    image: captured.image,
+                    onRetake: {
+                        previewImage = nil
+                        galleryItem = nil
+                        showCamera = true
+                    },
+                    onScanAnother: {
+                        previewImage = nil
+                        galleryItem = nil
                     }
-                }
-        }
-
-        // MARK: - Gallery Item Handler
-        // When the user picks a photo from the library, galleryItem gets set.
-        // But galleryItem is just a REFERENCE to the photo, not the image itself.
-        // We need to load the actual image data asynchronously.
-        .onChange(of: galleryItem) { _, newItem in
-            Task {
-                // loadTransferable loads the actual image data from the photo library.
-                // It's async because the photo might need to be downloaded from iCloud.
-                if let data = try? await newItem?.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
-                    capturedImage = image
-                    showPreview = true
-                }
+                )
             }
         }
 
-        // MARK: - Preview Sheet
-        .sheet(isPresented: $showPreview) {
+        // MARK: - Camera
+        .fullScreenCover(isPresented: $showCamera, onDismiss: {
             if let image = capturedImage {
-                PhotoPreviewView(
-                    image: image,
-                    onRetake: {
-                        showPreview = false
-                        capturedImage = nil
-                        galleryItem = nil
-                        showCamera = true
-                    }
-                )
-                .ignoresSafeArea()
+                previewImage = CapturedImage(image: image)
+                capturedImage = nil
+            }
+        }) {
+            CameraView(capturedImage: $capturedImage)
+        }
+
+        // MARK: - Gallery Handler
+        .onChange(of: galleryItem) { _, newItem in
+            Task {
+                if let data = try? await newItem?.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    previewImage = CapturedImage(image: image)
+                }
             }
         }
     }
 }
 
+// Wraps UIImage with a unique identity so each capture produces a distinct
+// navigation destination, preventing SwiftUI from reusing a stale view.
+private struct CapturedImage: Hashable {
+    let id = UUID()
+    let image: UIImage
+
+    static func == (lhs: CapturedImage, rhs: CapturedImage) -> Bool { lhs.id == rhs.id }
+    func hash(into hasher: inout Hasher) { hasher.combine(id) }
+}
+
 #Preview {
     HomeView()
+        .modelContainer(for: DiaryEntry.self, inMemory: true)
 }

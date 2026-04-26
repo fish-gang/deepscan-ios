@@ -100,37 +100,35 @@ struct CameraView: View {
 
 // MARK: - Camera Preview Bridge
 
-// This is the UIKit bridge we discussed earlier.
-// AVCaptureVideoPreviewLayer is a UIKit concept - it has no native
-// SwiftUI equivalent, so we wrap it using UIViewRepresentable.
-// UIViewRepresentable is simpler than UIViewControllerRepresentable
-// - it wraps a single UIView rather than a whole screen.
+// AVCaptureVideoPreviewLayer has no native SwiftUI equivalent,
+// so we wrap it using UIViewRepresentable.
 struct CameraPreviewView: UIViewRepresentable {
 
-    // The session from CameraViewModel - we just need to display it
     let session: AVCaptureSession
 
-    // Creates the UIView - called once when the view first appears
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: .zero)
-
-        // AVCaptureVideoPreviewLayer displays the live camera feed.
-        // We attach it to our UIView as a sublayer.
-        // Think of layers like z-ordered drawing layers on a canvas.
+    func makeUIView(context: Context) -> CameraPreviewUIView {
+        let view = CameraPreviewUIView()
         let previewLayer = AVCaptureVideoPreviewLayer(session: session)
-        previewLayer.videoGravity = .resizeAspectFill // fill the screen, crop if needed
-        previewLayer.frame = view.bounds
-
+        previewLayer.videoGravity = .resizeAspectFill
         view.layer.addSublayer(previewLayer)
+        view.previewLayer = previewLayer
         return view
     }
 
-    // Called when SwiftUI state changes and the view needs to update.
-    // We resize the preview layer to always match the view's current size.
-    // This handles rotation or screen size changes.
-    func updateUIView(_ uiView: UIView, context: Context) {
-        if let previewLayer = uiView.layer.sublayers?.first as? AVCaptureVideoPreviewLayer {
-            previewLayer.frame = uiView.bounds
-        }
+    func updateUIView(_ uiView: CameraPreviewUIView, context: Context) {
+        uiView.previewLayer?.frame = uiView.bounds
+    }
+}
+
+// Custom UIView so layoutSubviews keeps the preview layer sized correctly.
+// makeUIView runs before layout (bounds == .zero at that point), so we
+// can't rely on setting the frame there. layoutSubviews fires once real
+// bounds are known — this is the Apple-recommended pattern (see AVCam sample).
+class CameraPreviewUIView: UIView {
+    var previewLayer: AVCaptureVideoPreviewLayer?
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        previewLayer?.frame = bounds
     }
 }

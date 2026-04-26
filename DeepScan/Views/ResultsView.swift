@@ -1,15 +1,18 @@
 import SwiftUI
+import SwiftData
 
 struct ResultsView: View {
 
-    // The result to display - passed in from PhotoPreviewView
     let result: FishResult
+    let onScanAnother: () -> Void
 
-    // Controls whether the "Saved!" confirmation shows
     @State private var showSavedConfirmation = false
+    @State private var showSaveSheet = false
 
-    // Lets us go back to HomeView
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+
+    private var isUnknown: Bool { result.fishName == "Unknown Species" }
+    private var isLowConfidence: Bool { result.confidence < 0.5 && !isUnknown }
 
     var body: some View {
         ZStack {
@@ -25,7 +28,6 @@ struct ResultsView: View {
                         .scaledToFill()
                         .frame(maxWidth: .infinity)
                         .frame(height: 300)
-                        // .clipped cuts off anything outside the frame
                         .clipped()
 
                     // MARK: - Content
@@ -38,14 +40,20 @@ struct ResultsView: View {
                                 .fontWeight(.bold)
                                 .multilineTextAlignment(.center)
 
-                            // Format confidence as percentage
-                            // e.g. 0.94 → "94% confident"
                             Text("\(Int(result.confidence * 100))% confident")
                                 .font(.subheadline)
                                 .foregroundStyle(.secondary)
 
-                            // Visual confidence bar
                             ConfidenceBarView(confidence: result.confidence)
+
+                            if isLowConfidence {
+                                Label("Low confidence — result may not be accurate", systemImage: "exclamationmark.triangle.fill")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.orange)
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                            }
                         }
 
                         Divider()
@@ -68,26 +76,27 @@ struct ResultsView: View {
                         // MARK: - Actions
                         VStack(spacing: 12) {
 
-                            // Save to diary button
-                            Button(action: {
-                                saveToDiary()
-                            }) {
-                                Label(
-                                    showSavedConfirmation ? "Saved!" : "Save to Diary",
-                                    systemImage: showSavedConfirmation ? "checkmark" : "book.fill"
-                                )
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(showSavedConfirmation ? Color.green : Color.blue)
-                                .foregroundStyle(.white)
-                                .clipShape(RoundedRectangle(cornerRadius: 14))
+                            if isUnknown {
+                                Text("Species could not be identified with sufficient confidence.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
+                            } else {
+                                Button(action: { showSaveSheet = true }) {
+                                    Label(
+                                        showSavedConfirmation ? "Saved!" : "Save to Diary",
+                                        systemImage: showSavedConfirmation ? "checkmark" : "book.fill"
+                                    )
+                                    .frame(maxWidth: .infinity)
+                                    .padding()
+                                    .background(showSavedConfirmation ? Color.green : Color.blue)
+                                    .foregroundStyle(.white)
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                                }
+                                .disabled(showSavedConfirmation)
                             }
-                            .disabled(showSavedConfirmation)
 
-                            // Scan another fish
-                            Button(action: {
-                                dismiss()
-                            }) {
+                            Button(action: onScanAnother) {
                                 Label("Scan Another", systemImage: "arrow.counterclockwise")
                                     .frame(maxWidth: .infinity)
                                     .padding()
@@ -101,40 +110,87 @@ struct ResultsView: View {
                 }
             }
         }
-        // Hide the default navigation back button - we use our own
         .navigationBarBackButtonHidden(true)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: { dismiss() }) {
+                Button(action: onScanAnother) {
                     Image(systemName: "xmark")
                         .foregroundStyle(.primary)
                 }
             }
         }
+        .sheet(isPresented: $showSaveSheet) {
+            SaveDiarySheet(result: result) {
+                withAnimation { showSavedConfirmation = true }
+            }
+            .presentationDetents([.medium])
+        }
+    }
+}
+
+// MARK: - Save Diary Sheet
+
+struct SaveDiarySheet: View {
+
+    let result: FishResult
+    let onSaved: () -> Void
+
+    @Environment(\.modelContext) private var modelContext
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var location = ""
+    @State private var notes = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Location (optional)") {
+                    TextField("e.g. Great Barrier Reef", text: $location)
+                }
+                Section("Notes (optional)") {
+                    TextField("Add a note...", text: $notes, axis: .vertical)
+                        .lineLimit(3...6)
+                }
+            }
+            .navigationTitle("Save to Diary")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        save()
+                        dismiss()
+                        onSaved()
+                    }
+                    .fontWeight(.semibold)
+                }
+            }
+        }
     }
 
-    // MARK: - Actions
-
-    private func saveToDiary() {
-        // Mock save for now - we'll connect SwiftData here later
-        withAnimation {
-            showSavedConfirmation = true
-        }
+    private func save() {
+        let imagePath = DiaryEntry.storeImage(result.image)
+        let entry = DiaryEntry(
+            fishName: result.fishName,
+            confidence: result.confidence,
+            imagePath: imagePath,
+            location: location.isEmpty ? nil : location,
+            notes: notes.isEmpty ? nil : notes
+        )
+        modelContext.insert(entry)
+        try? modelContext.save()
     }
 }
 
 // MARK: - Confidence Bar
 
-// A small reusable view that visualizes the confidence as a colored bar.
-// Extracted into its own struct to keep ResultsView clean - this is
-// a good SwiftUI habit: break complex views into smaller components.
 struct ConfidenceBarView: View {
 
-    let confidence: Double // 0.0 to 1.0
+    let confidence: Double
 
-    // Computed property - calculated on the fly from confidence value.
-    // Like a getter in Java.
     var barColor: Color {
         if confidence >= 0.8 { return .green }
         if confidence >= 0.5 { return .orange }
@@ -143,19 +199,14 @@ struct ConfidenceBarView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            // GeometryReader gives us the actual size of the container.
-            // geometry.size.width = the available width in points.
             ZStack(alignment: .leading) {
-                // Background track
                 RoundedRectangle(cornerRadius: 4)
                     .fill(Color(.systemFill))
                     .frame(height: 8)
 
-                // Filled portion
                 RoundedRectangle(cornerRadius: 4)
                     .fill(barColor)
                     .frame(width: geometry.size.width * confidence, height: 8)
-                    // .animation makes the bar animate when confidence changes
                     .animation(.easeOut(duration: 0.6), value: confidence)
             }
         }
@@ -165,14 +216,13 @@ struct ConfidenceBarView: View {
 }
 
 #Preview {
-    // We need a NavigationStack in the preview because ResultsView
-    // uses navigation features (toolbar, back button)
     NavigationStack {
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: 390, height: 300))
         let fakeImage = renderer.image { ctx in
             UIColor.systemTeal.setFill()
             ctx.fill(CGRect(x: 0, y: 0, width: 390, height: 300))
         }
-        ResultsView(result: FishResult.mock(image: fakeImage))
+        ResultsView(result: FishResult.mock(image: fakeImage), onScanAnother: {})
     }
+    .modelContainer(for: DiaryEntry.self, inMemory: true)
 }

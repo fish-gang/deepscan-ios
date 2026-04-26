@@ -69,58 +69,41 @@ class CameraViewModel: NSObject, ObservableObject {
 
     // Sets up the AVCaptureSession pipeline:
     // [Camera Device] → [Session] → [Photo Output]
+    //
+    // Runs entirely on a background thread — AVCaptureSession configuration
+    // is blocking work that should not happen on the main thread.
     private func setupSession() {
+        let session = self.session
+        let photoOutput = self.photoOutput
+        // Hoist the weak reference before entering the detached task so we
+        // capture a plain local (not a @MainActor var), which Swift 6 permits.
+        weak let weakSelf = self
 
-        // beginConfiguration / commitConfiguration wrap all changes to the
-        // session so they apply atomically (all at once, not one by one).
-        // Similar to a database transaction.
-        session.beginConfiguration()
+        Task.detached(priority: .userInitiated) {
+            session.beginConfiguration()
+            session.sessionPreset = .photo
 
-        // Set quality level - .photo gives us the highest quality still image
-        session.sessionPreset = .photo
-
-        // Find the back camera device
-        guard let camera = AVCaptureDevice.default(.builtInWideAngleCamera,
-                                                   for: .video,
-                                                   position: .back) else {
-            errorMessage = "No camera found on this device."
-            session.commitConfiguration()
-            return
-        }
-
-        // 'guard let' is Swift's safe unwrapping pattern for Optionals.
-        // It means: "try to get this value - if it's nil, run the else block and exit"
-        // Think of it as a defensive null-check at the top of a method in Java.
-
-        do {
-            // Wrap the camera device as a "capture input" for the session
-            let input = try AVCaptureDeviceInput(device: camera)
-
-            // Add the camera input to the session if possible
-            if session.canAddInput(input) {
-                session.addInput(input)
+            guard let camera = AVCaptureDevice.default(
+                .builtInWideAngleCamera, for: .video, position: .back
+            ) else {
+                session.commitConfiguration()
+                await MainActor.run { weakSelf?.errorMessage = "No camera found on this device." }
+                return
             }
 
-            // Add the photo output to the session if possible
-            if session.canAddOutput(photoOutput) {
-                session.addOutput(photoOutput)
-            }
-
-            session.commitConfiguration()
-            isCameraReady = true
-
-            // Start the session on a background thread so it doesn't
-            // freeze the UI. Task.detached launches a concurrent task,
-            // similar to running something in a background thread in Java.
-            let session = self.session;
-            Task.detached {
+            do {
+                let input = try AVCaptureDeviceInput(device: camera)
+                if session.canAddInput(input) { session.addInput(input) }
+                if session.canAddOutput(photoOutput) { session.addOutput(photoOutput) }
+                session.commitConfiguration()
+                await MainActor.run { weakSelf?.isCameraReady = true }
                 session.startRunning()
+            } catch {
+                session.commitConfiguration()
+                await MainActor.run {
+                    weakSelf?.errorMessage = "Failed to set up camera: \(error.localizedDescription)"
+                }
             }
-
-        } catch {
-            // 'do/catch' in Swift = 'try/catch' in Java
-            errorMessage = "Failed to set up camera: \(error.localizedDescription)"
-            session.commitConfiguration()
         }
     }
 

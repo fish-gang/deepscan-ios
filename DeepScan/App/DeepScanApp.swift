@@ -1,32 +1,17 @@
-//
-//  DeepScanApp.swift
-//  DeepScan
-//
-//  Created by Jason Nguyen on 08.03.2026.
-//
-
 import SwiftUI
 import SwiftData
 
 @main
 struct DeepScanApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    // Created once here — model loads at app launch, not per classification.
+    @StateObject private var classifier = ClassifierViewModel()
 
     var body: some Scene {
         WindowGroup {
             HomeView()
+                .environmentObject(classifier)
         }
-        .modelContainer(sharedModelContainer)
+        .modelContainer(for: DiaryEntry.self)
     }
 }
