@@ -6,6 +6,12 @@ struct ResultsView: View {
     let result: FishResult
     let onScanAnother: () -> Void
 
+    // Set only when this view was pushed from FishPickerView. When present,
+    // the bottom action becomes "Pick Another Fish" and pops one level back
+    // to the picker (preserving the photo + boxes) instead of bouncing all
+    // the way home. Nil for single-fish / whole-image classification paths.
+    var onPickAnotherFish: (() -> Void)? = nil
+
     @State private var showSavedConfirmation = false
     @State private var showSaveSheet = false
 
@@ -13,119 +19,161 @@ struct ResultsView: View {
 
     private var isUnknown: Bool { result.fishName == "Unknown Species" }
     private var isLowConfidence: Bool { result.confidence < 0.5 && !isUnknown }
+    private var canPickAnother: Bool { onPickAnotherFish != nil }
 
     var body: some View {
-        ZStack {
-            Color(.systemBackground)
-                .ignoresSafeArea()
-
-            ScrollView {
-                VStack(spacing: 0) {
-
-                    // MARK: - Photo
-                    Image(uiImage: result.image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 300)
-                        .clipped()
-
-                    // MARK: - Content
-                    VStack(spacing: 24) {
-
-                        // Fish name + confidence
-                        VStack(spacing: 8) {
-                            Text(result.fishName)
-                                .font(.largeTitle)
-                                .fontWeight(.bold)
-                                .multilineTextAlignment(.center)
-
-                            Text("\(Int(result.confidence * 100))% confident")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-
-                            ConfidenceBarView(confidence: result.confidence)
-
-                            if isLowConfidence {
-                                Label("Low confidence — result may not be accurate", systemImage: "exclamationmark.triangle.fill")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.orange)
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 8)
-                                    .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                            }
-                        }
-
-                        Divider()
-
-                        // Fun fact / description
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label("Did you know?", systemImage: "lightbulb.fill")
-                                .font(.headline)
-                                .foregroundStyle(.orange)
-
-                            Text(result.description)
-                                .font(.body)
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-
-                        Divider()
-
-                        // MARK: - Actions
-                        VStack(spacing: 12) {
-
-                            if isUnknown {
-                                Text("Species could not be identified with sufficient confidence.")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.secondary)
-                                    .multilineTextAlignment(.center)
-                            } else {
-                                Button(action: { showSaveSheet = true }) {
-                                    Label(
-                                        showSavedConfirmation ? "Saved!" : "Save to Diary",
-                                        systemImage: showSavedConfirmation ? "checkmark" : "book.fill"
-                                    )
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(showSavedConfirmation ? Color.green : Color.blue)
-                                    .foregroundStyle(.white)
-                                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                                }
-                                .disabled(showSavedConfirmation)
-                            }
-
-                            Button(action: onScanAnother) {
-                                Label("Scan Another", systemImage: "arrow.counterclockwise")
-                                    .frame(maxWidth: .infinity)
-                                    .padding()
-                                    .background(Color(.secondarySystemFill))
-                                    .foregroundStyle(.primary)
-                                    .clipShape(RoundedRectangle(cornerRadius: 14))
-                            }
-                        }
-                    }
-                    .padding(24)
-                }
+        ScrollView {
+            VStack(spacing: 24) {
+                heroPhoto
+                titleSection
+                descriptionCard
             }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 24)
         }
+        .background(Color(.systemGroupedBackground))
         .navigationBarBackButtonHidden(true)
-        .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                Button(action: onScanAnother) {
-                    Image(systemName: "xmark")
-                        .foregroundStyle(.primary)
-                }
+            ToolbarItem(placement: .topBarLeading) {
+                Button("Close", systemImage: "xmark", action: onScanAnother)
             }
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }
         .sheet(isPresented: $showSaveSheet) {
             SaveDiarySheet(result: result) {
                 withAnimation { showSavedConfirmation = true }
             }
             .presentationDetents([.medium])
         }
+    }
+
+    // MARK: - Hero Photo
+
+    private var heroPhoto: some View {
+        Image(uiImage: result.image)
+            .resizable()
+            .scaledToFit()
+            .frame(maxWidth: .infinity)
+            .frame(maxHeight: 360)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .shadow(color: .black.opacity(0.08), radius: 12, y: 6)
+            .accessibilityLabel("Photo of \(result.fishName)")
+    }
+
+    // MARK: - Title + Confidence
+
+    private var titleSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(result.fishName)
+                .font(.title)
+                .fontWeight(.bold)
+                .fontDesign(.rounded)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 8) {
+                Image(systemName: "waveform.path.ecg")
+                    .font(.footnote.weight(.semibold))
+                Text("\(Int(result.confidence * 100))% confidence")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(OceanTheme.confidenceColor(result.confidence), in: Capsule())
+
+            ProgressView(value: result.confidence)
+                .tint(OceanTheme.confidenceColor(result.confidence))
+                .padding(.top, 2)
+                .accessibilityLabel("Confidence")
+                .accessibilityValue("\(Int(result.confidence * 100)) percent")
+
+            if isLowConfidence {
+                Label(
+                    "Low confidence — result may not be accurate",
+                    systemImage: "exclamationmark.triangle.fill"
+                )
+                .font(.subheadline)
+                .foregroundStyle(OceanTheme.sandy)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    OceanTheme.sandy.opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: - Description
+
+    private var descriptionCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Did you know?", systemImage: "fish.fill")
+                .font(.headline)
+                .foregroundStyle(OceanTheme.aqua)
+
+            Text(result.description)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(20)
+        .background(
+            Color(.secondarySystemGroupedBackground),
+            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+        )
+    }
+
+    // MARK: - Bottom Action Bar
+
+    private var bottomBar: some View {
+        VStack(spacing: 10) {
+            if isUnknown {
+                Text("Species could not be identified with sufficient confidence.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 4)
+            } else {
+                Button {
+                    showSaveSheet = true
+                } label: {
+                    Label(
+                        showSavedConfirmation ? "Saved to Diary" : "Save to Diary",
+                        systemImage: showSavedConfirmation ? "checkmark.circle.fill" : "book.fill"
+                    )
+                    .frame(maxWidth: .infinity)
+                    .contentTransition(.symbolEffect(.replace))
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .tint(showSavedConfirmation ? OceanTheme.seagrass : OceanTheme.aqua)
+                .disabled(showSavedConfirmation)
+            }
+
+            Button(action: onPickAnotherFish ?? onScanAnother) {
+                Label(
+                    canPickAnother ? "Pick Another Fish" : "Scan Another Fish",
+                    systemImage: "arrow.counterclockwise"
+                )
+                .frame(maxWidth: .infinity)
+                .contentTransition(.identity)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+            .tint(.primary)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 12)
+        .padding(.bottom, 8)
+        .background(.bar)
     }
 }
 
@@ -153,13 +201,14 @@ struct SaveDiarySheet: View {
                         .lineLimit(3...6)
                 }
             }
+            .tint(OceanTheme.aqua)
             .navigationTitle("Save to Diary")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
                 }
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .confirmationAction) {
                     Button("Save") {
                         save()
                         dismiss()
@@ -182,36 +231,6 @@ struct SaveDiarySheet: View {
         )
         modelContext.insert(entry)
         try? modelContext.save()
-    }
-}
-
-// MARK: - Confidence Bar
-
-struct ConfidenceBarView: View {
-
-    let confidence: Double
-
-    var barColor: Color {
-        if confidence >= 0.8 { return .green }
-        if confidence >= 0.5 { return .orange }
-        return .red
-    }
-
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color(.systemFill))
-                    .frame(height: 8)
-
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(barColor)
-                    .frame(width: geometry.size.width * confidence, height: 8)
-                    .animation(.easeOut(duration: 0.6), value: confidence)
-            }
-        }
-        .frame(height: 8)
-        .padding(.horizontal, 32)
     }
 }
 

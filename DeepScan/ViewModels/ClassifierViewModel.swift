@@ -1,16 +1,16 @@
-import Combine
 import CoreML
 import UIKit
 import Vision
 
+@Observable
 @MainActor
-class ClassifierViewModel: ObservableObject {
+final class ClassifierViewModel {
 
-    @Published var result: FishResult? = nil
-    @Published var isClassifying = false
-    @Published var errorMessage: String? = nil
+    var result: FishResult? = nil
+    var isClassifying = false
+    var errorMessage: String? = nil
 
-    private var vnModel: VNCoreMLModel?
+    @ObservationIgnored private var vnModel: VNCoreMLModel?
 
     init() {
         loadModel()
@@ -85,14 +85,19 @@ class ClassifierViewModel: ObservableObject {
             let maxScore = scores.max() ?? 0
             let exps = scores.map { exp($0 - maxScore) }
             let confidence = (exps.first ?? 0) / exps.reduce(0, +)
-            let isConfident = confidence >= 0.30
 
             print("✅ Top: \(top.identifier), confidence: \(confidence)")
 
+            // Resolve the user-facing copy. The model emits two sentinel labels
+            // ("no_fish", "unknown_fish") plus species labels we may or may not
+            // have curated descriptions for — each path gets its own message so
+            // we don't mislead the user about why we couldn't identify the fish.
+            let (fishName, fishDescription) = resolveCopy(for: top.identifier, confidence: confidence)
+
             let fishResult = FishResult(
-                fishName: isConfident ? displayName(for: top.identifier) : "Unknown Species",
+                fishName: fishName,
                 confidence: confidence,
-                description: isConfident ? description(for: top.identifier) : "The image did not match any known marine species with sufficient confidence. Try a clearer or closer photo.",
+                description: fishDescription,
                 image: image
             )
             result = fishResult
@@ -127,10 +132,57 @@ class ClassifierViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Result Copy
+
+    private func resolveCopy(
+        for identifier: String,
+        confidence: Double
+    ) -> (name: String, description: String) {
+
+        let highConfidence = confidence >= 0.30
+
+        // Known species with curated copy and a confident match.
+        if highConfidence,
+           let name = displayName(for: identifier),
+           let description = description(for: identifier) {
+            return (name, description)
+        }
+
+        // Confident, but the label is a sentinel or an unmapped species —
+        // each one gets its own honest message.
+        if highConfidence {
+            switch identifier {
+            case "no_fish":
+                return (
+                    "No Fish Detected",
+                    "I don't see a fish in this photo. Try another shot — make sure the fish is the main subject and clearly visible."
+                )
+            case "unknown_fish":
+                return (
+                    "Unknown Species",
+                    "Looks like a fish, but it's not one of the species I recognize yet."
+                )
+            default:
+                return (
+                    "Unknown Species",
+                    "Couldn't identify the species. Try a clearer or closer photo."
+                )
+            }
+        }
+
+        // Low confidence across the board — model is genuinely unsure.
+        return (
+            "Unknown Species",
+            "Couldn't identify with sufficient confidence. Try a clearer or closer photo."
+        )
+    }
+
     // MARK: - Display Names
 
-    // Maps scientific names (from model labels) to common names
-    private func displayName(for scientificName: String) -> String {
+    // Maps scientific names (from model labels) to common names.
+    // Returns nil for any label we don't have curated copy for — the caller
+    // treats that as "Unknown Species" rather than surfacing the raw identifier.
+    private func displayName(for scientificName: String) -> String? {
         let names: [String: String] = [
             "acanthurus_coeruleus": "Blue Tang",
             "amphiprion_ocellaris": "Clownfish",
@@ -144,13 +196,14 @@ class ClassifierViewModel: ObservableObject {
             "rhinecanthus_aculeatus": "Picasso Triggerfish",
             "scarus_ghobban": "Bluebarred Parrotfish",
         ]
-        return names[scientificName] ?? scientificName
+        return names[scientificName]
     }
 
     // MARK: - Descriptions
 
-    // Fun facts for each species shown in ResultsView
-    private func description(for scientificName: String) -> String {
+    // Fun facts for each species shown in ResultsView.
+    // Returns nil when no copy exists for the scientific name.
+    private func description(for scientificName: String) -> String? {
         let descriptions: [String: String] = [
             "acanthurus_coeruleus": "Blue Tang — a vibrant reef fish known for its sharp defensive spine near the tail. Found throughout tropical Atlantic waters.",
             "amphiprion_ocellaris": "Clownfish — lives among sea anemone tentacles, protected by a special mucus coating that makes it immune to the anemone's sting.",
@@ -164,6 +217,6 @@ class ClassifierViewModel: ObservableObject {
             "rhinecanthus_aculeatus": "Picasso Triggerfish — named for its abstract markings resembling a Picasso painting. Can lock its dorsal spine upright for protection.",
             "scarus_ghobban": "Bluebarred Parrotfish — uses its fused beak-like teeth to scrape algae off coral. The white sand on many tropical beaches is partly composed of coral ground up in their digestive systems.",
         ]
-        return descriptions[scientificName] ?? "A fascinating marine creature found in tropical coral reef ecosystems."
+        return descriptions[scientificName]
     }
 }

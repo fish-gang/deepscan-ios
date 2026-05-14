@@ -15,15 +15,14 @@ struct DiaryView: View {
 
                 // MARK: - Empty State
                 VStack(spacing: 16) {
-                    Image(systemName: "book.closed")
-                        .font(.system(size: 60))
-                        .foregroundStyle(.secondary)
+                    Text("🐟")
+                        .font(.system(size: 64))
 
                     Text("No dives yet")
                         .font(.title2)
                         .fontWeight(.semibold)
 
-                    Text("Scan a fish and save it to start your snorkel diary!")
+                    Text("Scan a fish to start your underwater diary!")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -46,6 +45,7 @@ struct DiaryView: View {
         }
         .navigationTitle("Snorkel Diary")
         .navigationBarTitleDisplayMode(.large)
+        .tint(OceanTheme.aqua)
         .toolbar {
             if !entries.isEmpty {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -85,26 +85,38 @@ struct DiaryRowView: View {
                 } else {
                     Color(.systemFill)
                         .overlay(
-                            Image(systemName: "photo")
-                                .foregroundStyle(.secondary)
+                            Image(systemName: "fish.fill")
+                                .foregroundStyle(OceanTheme.aqua.opacity(0.6))
                         )
                 }
             }
-            .frame(width: 60, height: 60)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .frame(width: 64, height: 64)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
 
             // Text info
             VStack(alignment: .leading, spacing: 4) {
                 Text(entry.fishName)
                     .font(.headline)
 
-                Text("\(Int(entry.confidence * 100))% confident")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(OceanTheme.confidenceColor(entry.confidence))
+                        .frame(width: 7, height: 7)
+                    Text("\(Int(entry.confidence * 100))% confident")
+                        .font(.subheadline)
+                        .foregroundStyle(OceanTheme.confidenceColor(entry.confidence))
+                }
 
-                Text(entry.date.formatted(date: .abbreviated, time: .omitted))
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                if let location = entry.location {
+                    Label(location, systemImage: "mappin.and.ellipse")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                } else {
+                    Text(entry.date.formatted(date: .abbreviated, time: .omitted))
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
             }
 
             Spacer()
