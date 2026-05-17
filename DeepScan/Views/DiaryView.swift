@@ -15,8 +15,10 @@ struct DiaryView: View {
 
                 // MARK: - Empty State
                 VStack(spacing: 16) {
-                    Text("🐟")
-                        .font(.system(size: 64))
+                    Image("diver")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 120, height: 120)
 
                     Text("No dives yet")
                         .font(.title2)

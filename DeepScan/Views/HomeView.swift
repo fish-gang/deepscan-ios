@@ -16,7 +16,7 @@ struct HomeView: View {
     // creates a new PhotoPreviewView — preventing stale view reuse.
     @State private var previewImage: CapturedImage? = nil
 
-    @ScaledMetric(relativeTo: .largeTitle) private var emojiSize: CGFloat = 70
+    @ScaledMetric(relativeTo: .largeTitle) private var diverSize: CGFloat = 140
 
     var body: some View {
         NavigationStack {
@@ -31,8 +31,10 @@ struct HomeView: View {
 
                     // MARK: - Header
                     VStack(spacing: 14) {
-                        Text("🐠")
-                            .font(.system(size: emojiSize))
+                        Image("diver")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: diverSize, height: diverSize)
                             .shadow(color: OceanTheme.aqua.opacity(0.5), radius: 24)
 
                         Text("DeepScan")
