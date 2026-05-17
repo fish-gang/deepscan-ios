@@ -17,6 +17,9 @@ struct HomeView: View {
     @State private var previewImage: CapturedImage? = nil
 
     @ScaledMetric(relativeTo: .largeTitle) private var diverSize: CGFloat = 140
+    @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 56
+    @ScaledMetric(relativeTo: .body)       private var subtitleSize: CGFloat = 19
+    @State private var diverBob = false
 
     var body: some View {
         NavigationStack {
@@ -24,8 +27,8 @@ struct HomeView: View {
                 OceanTheme.backgroundGradient
                     .ignoresSafeArea()
 
-                OceanBubbles()
-
+                LightRays()
+                AnimatedBubbles()
                 SwimmingFishes()
 
                 VStack(spacing: 0) {
@@ -37,16 +40,31 @@ struct HomeView: View {
                             .resizable()
                             .scaledToFit()
                             .frame(width: diverSize, height: diverSize)
+                            .rotationEffect(.degrees(diverBob ? 3 : -3))
+                            .offset(y: diverBob ? -8 : 8)
                             .shadow(color: OceanTheme.aqua.opacity(0.5), radius: 24)
+                            .animation(
+                                .easeInOut(duration: 3.5).repeatForever(autoreverses: true),
+                                value: diverBob
+                            )
+                            .onAppear { diverBob = true }
 
                         Text("DeepScan")
-                            .font(.system(.largeTitle, design: .rounded))
-                            .fontWeight(.heavy)
-                            .foregroundStyle(.white)
+                            .font(.system(size: titleSize, weight: .heavy, design: .rounded))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [.white, OceanTheme.seafoam],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                            .shadow(color: OceanTheme.aqua.opacity(0.55), radius: 16, y: 2)
+                            .tracking(-0.5)
 
                         Text("Identify reef fish instantly")
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.75))
+                            .font(.system(size: subtitleSize, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.85))
+                            .tracking(0.3)
                     }
 
                     Spacer()
@@ -80,14 +98,18 @@ struct HomeView: View {
                     }
                     .padding(.horizontal, 28)
 
-                    // MARK: - Diary Navigation
-                    NavigationLink(destination: DiaryView()) {
-                        Label("My Snorkel Diary", systemImage: "book.fill")
-                            .fontWeight(.medium)
-                            .foregroundStyle(OceanTheme.seafoam)
-                            .padding(.top, 28)
-                            .padding(.bottom, 8)
+                    // MARK: - Secondary Navigation
+                    HStack(spacing: 14) {
+                        NavigationLink(destination: DiaryView()) {
+                            secondaryNavLabel(icon: "book.fill", title: "Diary")
+                        }
+                        NavigationLink(destination: MapView()) {
+                            secondaryNavLabel(icon: "map.fill", title: "Map")
+                        }
                     }
+                    .padding(.horizontal, 28)
+                    .padding(.top, 22)
+                    .padding(.bottom, 8)
                 }
                 .padding(.bottom, 40)
             }
@@ -130,6 +152,30 @@ struct HomeView: View {
                 }
             }
         }
+
+        // MARK: - Haptics
+        .sensoryFeedback(.selection, trigger: showCamera) { _, new in new }
+        .sensoryFeedback(.selection, trigger: galleryItem)
+    }
+
+    private func secondaryNavLabel(icon: String, title: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.subheadline.weight(.semibold))
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+        }
+        .foregroundStyle(OceanTheme.seafoam)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 12)
+        .background(
+            .ultraThinMaterial,
+            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+        )
     }
 }
 
@@ -143,40 +189,143 @@ private struct CapturedImage: Hashable {
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
 }
 
-// Scattered bubble decorations that give an underwater feel.
-private struct OceanBubbles: View {
-    private struct Bubble: Identifiable {
+// MARK: - Light Rays
+
+// Faint diagonal "god rays" from the surface. .plusLighter brightens
+// whatever sits behind so they read as light, not solid bars.
+private struct LightRays: View {
+
+    fileprivate struct Ray: Identifiable {
         let id: Int
-        let x, y, size, opacity: Double
+        let x: Double         // 0...1, normalized horizontal position
+        let width: CGFloat
+        let height: CGFloat
+        let angle: Double
+        let duration: Double
+        let delay: Double
+        let baseOpacity: Double
     }
 
-    private let bubbles: [Bubble] = [
-        .init(id: 0, x: 0.08, y: 0.10, size: 14, opacity: 0.12),
-        .init(id: 1, x: 0.88, y: 0.17, size: 8,  opacity: 0.15),
-        .init(id: 2, x: 0.20, y: 0.33, size: 22, opacity: 0.07),
-        .init(id: 3, x: 0.78, y: 0.42, size: 11, opacity: 0.13),
-        .init(id: 4, x: 0.10, y: 0.58, size: 16, opacity: 0.10),
-        .init(id: 5, x: 0.93, y: 0.63, size: 7,  opacity: 0.17),
-        .init(id: 6, x: 0.50, y: 0.72, size: 13, opacity: 0.08),
-        .init(id: 7, x: 0.30, y: 0.85, size: 9,  opacity: 0.13),
-        .init(id: 8, x: 0.70, y: 0.90, size: 6,  opacity: 0.17),
-        .init(id: 9, x: 0.60, y: 0.25, size: 10, opacity: 0.11),
+    private let rays: [Ray] = [
+        .init(id: 0, x: 0.18, width: 90,  height: 520, angle: 14,  duration: 6.5, delay: 0,   baseOpacity: 0.10),
+        .init(id: 1, x: 0.48, width: 60,  height: 600, angle: -8,  duration: 8.0, delay: 1.5, baseOpacity: 0.08),
+        .init(id: 2, x: 0.78, width: 110, height: 480, angle: 22,  duration: 7.0, delay: 3.0, baseOpacity: 0.09),
     ]
 
     var body: some View {
         GeometryReader { geo in
-            ForEach(bubbles) { b in
-                Circle()
-                    .strokeBorder(Color.white.opacity(b.opacity * 1.5), lineWidth: 1)
-                    .background(Circle().fill(Color.white.opacity(b.opacity * 0.5)))
-                    .frame(width: b.size, height: b.size)
-                    .position(x: geo.size.width * b.x, y: geo.size.height * b.y)
+            ZStack(alignment: .top) {
+                ForEach(rays) { ray in
+                    LightRay(ray: ray, canvasWidth: geo.size.width)
+                }
+            }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .blendMode(.plusLighter)
+    }
+}
+
+private struct LightRay: View {
+
+    let ray: LightRays.Ray
+    let canvasWidth: CGFloat
+
+    @State private var pulse = false
+
+    var body: some View {
+        Rectangle()
+            .fill(
+                LinearGradient(
+                    colors: [.white.opacity(pulse ? 0.55 : 0.25), .clear],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .frame(width: ray.width, height: ray.height)
+            .rotationEffect(.degrees(ray.angle))
+            .opacity(ray.baseOpacity + (pulse ? 0.12 : 0))
+            .position(x: canvasWidth * ray.x, y: ray.height * 0.4)
+            .animation(
+                .easeInOut(duration: ray.duration)
+                    .repeatForever(autoreverses: true)
+                    .delay(ray.delay),
+                value: pulse
+            )
+            .onAppear { pulse = true }
+    }
+}
+
+// MARK: - Animated Bubbles
+
+// Bubbles drift upward continuously. Each one snaps back below the screen
+// after exiting the top — the snap happens off-canvas so it's invisible.
+private struct AnimatedBubbles: View {
+
+    fileprivate struct Bubble: Identifiable {
+        let id: Int
+        let x: Double          // 0...1, normalized horizontal position
+        let size: CGFloat
+        let duration: Double
+        let delay: Double
+        let opacity: Double
+    }
+
+    private let bubbles: [Bubble] = [
+        .init(id: 0, x: 0.08, size: 14, duration: 9,  delay: 0,   opacity: 0.20),
+        .init(id: 1, x: 0.20, size: 22, duration: 12, delay: 2,   opacity: 0.14),
+        .init(id: 2, x: 0.32, size: 9,  duration: 7,  delay: 5,   opacity: 0.22),
+        .init(id: 3, x: 0.44, size: 16, duration: 10, delay: 3,   opacity: 0.18),
+        .init(id: 4, x: 0.55, size: 11, duration: 8,  delay: 6,   opacity: 0.22),
+        .init(id: 5, x: 0.68, size: 18, duration: 13, delay: 1,   opacity: 0.16),
+        .init(id: 6, x: 0.78, size: 8,  duration: 6,  delay: 4,   opacity: 0.24),
+        .init(id: 7, x: 0.88, size: 13, duration: 11, delay: 7,   opacity: 0.20),
+        .init(id: 8, x: 0.92, size: 7,  duration: 8,  delay: 9,   opacity: 0.22),
+        .init(id: 9, x: 0.50, size: 10, duration: 9,  delay: 8,   opacity: 0.20),
+    ]
+
+    var body: some View {
+        GeometryReader { geo in
+            ForEach(bubbles) { bubble in
+                RisingBubble(bubble: bubble, canvasSize: geo.size)
             }
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
     }
 }
+
+private struct RisingBubble: View {
+
+    let bubble: AnimatedBubbles.Bubble
+    let canvasSize: CGSize
+
+    @State private var isRising = false
+
+    private var startY: CGFloat { canvasSize.height + 40 }
+    private var endY: CGFloat   { -40 }
+
+    var body: some View {
+        Circle()
+            .strokeBorder(Color.white.opacity(bubble.opacity * 1.5), lineWidth: 1)
+            .background(Circle().fill(Color.white.opacity(bubble.opacity * 0.5)))
+            .frame(width: bubble.size, height: bubble.size)
+            .position(
+                x: canvasSize.width * bubble.x,
+                y: isRising ? endY : startY
+            )
+            .animation(
+                .linear(duration: bubble.duration)
+                    .repeatForever(autoreverses: false)
+                    .delay(bubble.delay),
+                value: isRising
+            )
+            .onAppear { isRising = true }
+    }
+}
+
+// MARK: - Swimming Fishes
 
 // Ambient school of fish drifting across the home background.
 // Each fish swims one direction on an independent linear loop; off-screen

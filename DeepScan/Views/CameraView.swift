@@ -26,7 +26,19 @@ struct CameraView: View {
                             .padding()
                             .background(.ultraThinMaterial, in: Circle())
                     }
+
                     Spacer()
+
+                    Button {
+                        viewModel.switchCamera()
+                    } label: {
+                        Image(systemName: "arrow.triangle.2.circlepath.camera")
+                            .font(.title2)
+                            .foregroundStyle(.white)
+                            .padding()
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                    .disabled(!viewModel.isCameraReady)
                 }
                 .padding()
 
@@ -68,6 +80,10 @@ struct CameraView: View {
                 dismiss()
             }
         }
+        .sensoryFeedback(.impact(weight: .medium), trigger: viewModel.capturedImage) { old, new in
+            old == nil && new != nil
+        }
+        .sensoryFeedback(.selection, trigger: viewModel.currentPosition)
     }
 }
 

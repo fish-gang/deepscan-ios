@@ -51,6 +51,7 @@ struct ResultsView: View {
             }
             .presentationDetents([.medium])
         }
+        .sensoryFeedback(.success, trigger: showSavedConfirmation) { _, new in new }
     }
 
     // MARK: - Hero Photo

@@ -71,8 +71,9 @@ struct PhotoPreviewView: View {
                 Button(action: scan) {
                     HStack(spacing: 8) {
                         if isBusy {
-                            ProgressView()
-                                .tint(.white)
+                            Image(systemName: "fish.fill")
+                                .symbolEffect(.pulse, options: .repeating, isActive: isBusy)
+                                .foregroundStyle(.white)
                             Text(busyLabel)
                         } else {
                             Label("Scan Fish", systemImage: "fish.fill")

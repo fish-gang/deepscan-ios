@@ -12,21 +12,23 @@ final class CameraViewModel: NSObject {
     var capturedImage: UIImage?
     var isCameraReady = false
     var errorMessage: String?
+    var currentPosition: AVCaptureDevice.Position = .back
 
     // MARK: - Private
 
     @ObservationIgnored private let photoOutput = AVCapturePhotoOutput()
+    @ObservationIgnored private var currentInput: AVCaptureDeviceInput?
 
     // MARK: - Setup
 
     func checkPermissionsAndSetup() async {
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:
-            setupSession()
+            configure(position: .back, initialSetup: true)
 
         case .notDetermined:
             if await AVCaptureDevice.requestAccess(for: .video) {
-                setupSession()
+                configure(position: .back, initialSetup: true)
             } else {
                 errorMessage = "Camera access denied. Please enable it in Settings."
             }
@@ -39,33 +41,61 @@ final class CameraViewModel: NSObject {
         }
     }
 
+    // MARK: - Camera Switching
+
+    func switchCamera() {
+        let newPosition: AVCaptureDevice.Position = currentPosition == .back ? .front : .back
+        configure(position: newPosition, initialSetup: false)
+    }
+
     // AVCaptureSession configuration is blocking — keep it off the main thread.
-    private func setupSession() {
+    // Used for both first-time setup and runtime camera switching; the
+    // `initialSetup` flag controls one-time configuration (output + start).
+    private func configure(position: AVCaptureDevice.Position, initialSetup: Bool) {
         let session = self.session
         let photoOutput = self.photoOutput
+        let oldInput = self.currentInput
         // Hoist the weak reference before entering the detached task so we
         // capture a plain local (not a @MainActor var), which Swift 6 permits.
         weak let weakSelf = self
 
         Task.detached(priority: .userInitiated) {
             session.beginConfiguration()
-            session.sessionPreset = .photo
+            if initialSetup {
+                session.sessionPreset = .photo
+            }
+
+            if let oldInput {
+                session.removeInput(oldInput)
+            }
 
             guard let camera = AVCaptureDevice.default(
-                .builtInWideAngleCamera, for: .video, position: .back
+                .builtInWideAngleCamera, for: .video, position: position
             ) else {
                 session.commitConfiguration()
-                await MainActor.run { weakSelf?.errorMessage = "No camera found on this device." }
+                await MainActor.run {
+                    weakSelf?.errorMessage = "Camera unavailable on this device."
+                }
                 return
             }
 
             do {
                 let input = try AVCaptureDeviceInput(device: camera)
-                if session.canAddInput(input) { session.addInput(input) }
-                if session.canAddOutput(photoOutput) { session.addOutput(photoOutput) }
+                if session.canAddInput(input) {
+                    session.addInput(input)
+                }
+                if initialSetup, session.canAddOutput(photoOutput) {
+                    session.addOutput(photoOutput)
+                }
                 session.commitConfiguration()
-                await MainActor.run { weakSelf?.isCameraReady = true }
-                session.startRunning()
+                await MainActor.run {
+                    weakSelf?.currentInput = input
+                    weakSelf?.currentPosition = position
+                    weakSelf?.isCameraReady = true
+                }
+                if initialSetup {
+                    session.startRunning()
+                }
             } catch {
                 session.commitConfiguration()
                 await MainActor.run {

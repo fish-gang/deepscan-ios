@@ -111,8 +111,9 @@ struct FishPickerView: View {
             Button(action: scanSelected) {
                 HStack(spacing: 8) {
                     if isClassifying {
-                        ProgressView()
-                            .tint(.white)
+                        Image(systemName: "fish.fill")
+                            .symbolEffect(.pulse, options: .repeating, isActive: isClassifying)
+                            .foregroundStyle(.white)
                         Text("Scanning...")
                     } else {
                         Label("Scan This Fish", systemImage: "fish.fill")

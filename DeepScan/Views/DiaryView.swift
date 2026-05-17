@@ -25,6 +25,9 @@ struct DiaryView: View {
         .navigationDestination(item: $selectedEntry) { entry in
             DiaryDetailView(entry: entry)
         }
+        .sensoryFeedback(.impact(weight: .light), trigger: entries.count) { old, new in
+            new < old
+        }
         .navigationTitle("Snorkel Diary")
         .navigationBarTitleDisplayMode(.large)
         .toolbarColorScheme(.dark, for: .navigationBar)
