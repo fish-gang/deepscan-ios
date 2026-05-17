@@ -15,25 +15,30 @@ struct ResultsView: View {
     @State private var showSavedConfirmation = false
     @State private var showSaveSheet = false
 
-    @Environment(\.modelContext) private var modelContext
-
     private var isUnknown: Bool { result.fishName == "Unknown Species" }
     private var isLowConfidence: Bool { result.confidence < 0.5 && !isUnknown }
     private var canPickAnother: Bool { onPickAnotherFish != nil }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                heroPhoto
-                titleSection
-                descriptionCard
+        ZStack {
+            OceanTheme.backgroundGradient
+                .ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: 24) {
+                    heroPhoto
+                    titleSection
+                    descriptionCard
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 24)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 12)
-            .padding(.bottom, 24)
         }
-        .background(Color(.systemGroupedBackground))
         .navigationBarBackButtonHidden(true)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .tint(OceanTheme.seafoam)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button("Close", systemImage: "xmark", action: onScanAnother)
@@ -56,9 +61,13 @@ struct ResultsView: View {
             .scaledToFit()
             .frame(maxWidth: .infinity)
             .frame(maxHeight: 360)
-            .background(.regularMaterial)
+            .background(.ultraThinMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .shadow(color: .black.opacity(0.08), radius: 12, y: 6)
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.3), radius: 16, y: 8)
             .accessibilityLabel("Photo of \(result.fishName)")
     }
 
@@ -70,6 +79,7 @@ struct ResultsView: View {
                 .font(.title)
                 .fontWeight(.bold)
                 .fontDesign(.rounded)
+                .foregroundStyle(.white)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 8) {
@@ -100,7 +110,7 @@ struct ResultsView: View {
                 .padding(.vertical, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(
-                    OceanTheme.sandy.opacity(0.12),
+                    OceanTheme.sandy.opacity(0.2),
                     in: RoundedRectangle(cornerRadius: 12, style: .continuous)
                 )
             }
@@ -112,21 +122,26 @@ struct ResultsView: View {
 
     private var descriptionCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Did you know?", systemImage: "fish.fill")
+            Label("Did you know?", systemImage: "sparkles")
                 .font(.headline)
-                .foregroundStyle(OceanTheme.aqua)
+                .foregroundStyle(OceanTheme.seafoam)
 
             Text(result.description)
                 .font(.body)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.85))
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
         .background(
-            Color(.secondarySystemGroupedBackground),
+            .ultraThinMaterial,
             in: RoundedRectangle(cornerRadius: 20, style: .continuous)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(.white.opacity(0.15), lineWidth: 1)
+        )
+        .shadow(color: OceanTheme.deepOcean.opacity(0.35), radius: 10, y: 4)
     }
 
     // MARK: - Bottom Action Bar
@@ -136,7 +151,7 @@ struct ResultsView: View {
             if isUnknown {
                 Text("Species could not be identified with sufficient confidence.")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.white.opacity(0.8))
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: .infinity)
                     .fixedSize(horizontal: false, vertical: true)
@@ -168,12 +183,12 @@ struct ResultsView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.large)
-            .tint(.primary)
+            .tint(.white)
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)
         .padding(.bottom, 8)
-        .background(.bar)
+        .background(.ultraThinMaterial)
     }
 }
 

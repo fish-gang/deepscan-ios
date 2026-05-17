@@ -9,45 +9,27 @@ struct DiaryView: View {
     // the view automatically whenever the SwiftData store changes.
     @Query(sort: \DiaryEntry.date, order: .reverse) private var entries: [DiaryEntry]
 
+    @State private var selectedEntry: DiaryEntry?
+
     var body: some View {
-        Group {
+        ZStack {
+            OceanTheme.backgroundGradient
+                .ignoresSafeArea()
+
             if entries.isEmpty {
-
-                // MARK: - Empty State
-                VStack(spacing: 16) {
-                    Image("diver")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 120, height: 120)
-
-                    Text("No dives yet")
-                        .font(.title2)
-                        .fontWeight(.semibold)
-
-                    Text("Scan a fish to start your underwater diary!")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
-                }
-
+                emptyState
             } else {
-
-                // MARK: - Entries List
-                List {
-                    ForEach(entries) { entry in
-                        NavigationLink(destination: DiaryDetailView(entry: entry)) {
-                            DiaryRowView(entry: entry)
-                        }
-                    }
-                    .onDelete(perform: delete)
-                }
-                .listStyle(.insetGrouped)
+                entriesList
             }
+        }
+        .navigationDestination(item: $selectedEntry) { entry in
+            DiaryDetailView(entry: entry)
         }
         .navigationTitle("Snorkel Diary")
         .navigationBarTitleDisplayMode(.large)
-        .tint(OceanTheme.aqua)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .tint(OceanTheme.seafoam)
         .toolbar {
             if !entries.isEmpty {
                 ToolbarItem(placement: .navigationBarTrailing) {
@@ -55,6 +37,70 @@ struct DiaryView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Empty State
+
+    private var emptyState: some View {
+        VStack(spacing: 28) {
+            Image("ponyo")
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity)
+                .frame(height: 320)
+                .clipped()
+                .overlay(
+                    LinearGradient(
+                        colors: [
+                            .clear,
+                            OceanTheme.deepOcean.opacity(0.4),
+                            OceanTheme.deepOcean.opacity(0.95)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                .shadow(color: .black.opacity(0.35), radius: 18, y: 10)
+                .padding(.horizontal, 20)
+
+            VStack(spacing: 10) {
+                Text("No dives yet")
+                    .font(.system(.title2, design: .rounded))
+                    .fontWeight(.bold)
+                    .foregroundStyle(.white)
+
+                Text("Scan a fish to start your underwater diary!")
+                    .font(.subheadline)
+                    .foregroundStyle(.white.opacity(0.75))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 36)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 8)
+    }
+
+    // MARK: - Entries List
+
+    private var entriesList: some View {
+        List {
+            ForEach(entries) { entry in
+                Button {
+                    selectedEntry = entry
+                } label: {
+                    DiaryRowView(entry: entry)
+                }
+                .buttonStyle(.plain)
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 6, leading: 16, bottom: 6, trailing: 16))
+            }
+            .onDelete(perform: delete)
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
     }
 
     // MARK: - Delete
@@ -76,7 +122,7 @@ struct DiaryRowView: View {
     let entry: DiaryEntry
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
 
             // Thumbnail photo
             Group {
@@ -85,20 +131,23 @@ struct DiaryRowView: View {
                         .resizable()
                         .scaledToFill()
                 } else {
-                    Color(.systemFill)
+                    OceanTheme.aqua.opacity(0.35)
                         .overlay(
-                            Image(systemName: "fish.fill")
-                                .foregroundStyle(OceanTheme.aqua.opacity(0.6))
+                            Image("diver")
+                                .resizable()
+                                .scaledToFit()
+                                .padding(10)
                         )
                 }
             }
-            .frame(width: 64, height: 64)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .frame(width: 68, height: 68)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
             // Text info
             VStack(alignment: .leading, spacing: 4) {
                 Text(entry.fishName)
                     .font(.headline)
+                    .foregroundStyle(.white)
 
                 HStack(spacing: 4) {
                     Circle()
@@ -112,18 +161,31 @@ struct DiaryRowView: View {
                 if let location = entry.location {
                     Label(location, systemImage: "mappin.and.ellipse")
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.white.opacity(0.65))
                         .lineLimit(1)
                 } else {
                     Text(entry.date.formatted(date: .abbreviated, time: .omitted))
                         .font(.caption)
-                        .foregroundStyle(.tertiary)
+                        .foregroundStyle(.white.opacity(0.65))
                 }
             }
 
             Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.4))
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .background(
+            .ultraThinMaterial,
+            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(.white.opacity(0.15), lineWidth: 1)
+        )
+        .shadow(color: OceanTheme.deepOcean.opacity(0.4), radius: 10, y: 4)
     }
 }
 

@@ -11,25 +11,32 @@ struct DiaryDetailView: View {
     @State private var showDeleteConfirmation = false
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                heroPhoto
-                titleSection
-                metadataCard
+        ZStack {
+            OceanTheme.backgroundGradient
+                .ignoresSafeArea()
+
+            ScrollView {
+                VStack(spacing: 24) {
+                    heroPhoto
+                    titleSection
+                    metadataCard
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+                .padding(.bottom, 24)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 12)
-            .padding(.bottom, 24)
         }
-        .background(Color(.systemGroupedBackground))
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        .tint(OceanTheme.aqua)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbarBackground(.hidden, for: .navigationBar)
+        .tint(OceanTheme.seafoam)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Delete", systemImage: "trash", role: .destructive) {
                     showDeleteConfirmation = true
                 }
+                .foregroundStyle(OceanTheme.coral)
             }
         }
         .confirmationDialog(
@@ -58,18 +65,24 @@ struct DiaryDetailView: View {
                     .frame(maxWidth: .infinity)
                     .frame(maxHeight: 360)
             } else {
-                OceanTheme.backgroundGradient
+                Color.white.opacity(0.08)
                     .frame(height: 240)
                     .overlay(
-                        Image(systemName: "fish.fill")
-                            .font(.system(size: 48))
-                            .foregroundStyle(.white.opacity(0.6))
+                        Image("diver")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 120, height: 120)
+                            .opacity(0.85)
                     )
             }
         }
-        .background(.regularMaterial)
+        .background(.ultraThinMaterial)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-        .shadow(color: .black.opacity(0.08), radius: 12, y: 6)
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.25), radius: 16, y: 8)
         .accessibilityLabel("Photo of \(entry.fishName)")
     }
 
@@ -81,6 +94,7 @@ struct DiaryDetailView: View {
                 .font(.title)
                 .fontWeight(.bold)
                 .fontDesign(.rounded)
+                .foregroundStyle(.white)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 8) {
@@ -110,13 +124,13 @@ struct DiaryDetailView: View {
                 systemImage: "calendar"
             )
             .font(.subheadline)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(.white.opacity(0.85))
             .fixedSize(horizontal: false, vertical: true)
 
             if let location = entry.location {
                 Label(location, systemImage: "mappin.and.ellipse")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(.white.opacity(0.85))
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -128,14 +142,19 @@ struct DiaryDetailView: View {
                     Image(systemName: "note.text")
                 }
                 .font(.subheadline)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(.white.opacity(0.85))
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
         .background(
-            Color(.secondarySystemGroupedBackground),
+            .ultraThinMaterial,
             in: RoundedRectangle(cornerRadius: 20, style: .continuous)
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(.white.opacity(0.15), lineWidth: 1)
+        )
+        .shadow(color: OceanTheme.deepOcean.opacity(0.35), radius: 10, y: 4)
     }
 }
