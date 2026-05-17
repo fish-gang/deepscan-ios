@@ -26,6 +26,8 @@ struct HomeView: View {
 
                 OceanBubbles()
 
+                SwimmingFishes()
+
                 VStack(spacing: 0) {
                     Spacer()
 
@@ -173,6 +175,90 @@ private struct OceanBubbles: View {
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
+    }
+}
+
+// Ambient school of fish drifting across the home background.
+// Each fish swims one direction on an independent linear loop; off-screen
+// snap-back is hidden by the start/end offsets sitting beyond the bounds.
+private struct SwimmingFishes: View {
+
+    fileprivate struct Fish: Identifiable {
+        let id: Int
+        let y: Double          // 0...1, normalized vertical position
+        let size: CGFloat
+        let duration: Double   // seconds per full traversal
+        let delay: Double      // stagger so fish don't move in lockstep
+        let opacity: Double
+        let color: Color
+        let leftToRight: Bool
+    }
+
+    // Tropical reef palette — coral pinks, sandy oranges, sunny yellows,
+    // chromis greens, and a touch of violet so the school reads as a school
+    // and not as monochrome decoration.
+    private static let palette: [Color] = [
+        OceanTheme.coral,
+        OceanTheme.sandy,
+        OceanTheme.seagrass,
+        Color(hex: "FFD23F"),   // tropical yellow
+        Color(hex: "FF8C42"),   // clownfish orange
+        Color(hex: "B388EB"),   // soft violet
+        OceanTheme.seafoam,
+    ]
+
+    private let fishes: [Fish] = [
+        .init(id: 0, y: 0.10, size: 24, duration: 18, delay: 0,   opacity: 0.55, color: palette[0], leftToRight: true),
+        .init(id: 1, y: 0.18, size: 16, duration: 14, delay: 6,   opacity: 0.45, color: palette[3], leftToRight: false),
+        .init(id: 2, y: 0.26, size: 20, duration: 20, delay: 2,   opacity: 0.50, color: palette[4], leftToRight: true),
+        .init(id: 3, y: 0.34, size: 14, duration: 12, delay: 9,   opacity: 0.40, color: palette[5], leftToRight: false),
+        .init(id: 4, y: 0.44, size: 28, duration: 24, delay: 4,   opacity: 0.45, color: palette[1], leftToRight: true),
+        .init(id: 5, y: 0.54, size: 18, duration: 16, delay: 11,  opacity: 0.50, color: palette[2], leftToRight: false),
+        .init(id: 6, y: 0.64, size: 22, duration: 21, delay: 7,   opacity: 0.55, color: palette[0], leftToRight: true),
+        .init(id: 7, y: 0.74, size: 16, duration: 13, delay: 1,   opacity: 0.45, color: palette[6], leftToRight: false),
+        .init(id: 8, y: 0.84, size: 20, duration: 19, delay: 5,   opacity: 0.50, color: palette[3], leftToRight: true),
+        .init(id: 9, y: 0.92, size: 14, duration: 15, delay: 10,  opacity: 0.40, color: palette[4], leftToRight: false),
+    ]
+
+    var body: some View {
+        GeometryReader { geo in
+            ForEach(fishes) { fish in
+                SwimmingFish(fish: fish, canvasSize: geo.size)
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+    }
+}
+
+private struct SwimmingFish: View {
+
+    let fish: SwimmingFishes.Fish
+    let canvasSize: CGSize
+
+    @State private var isSwimming = false
+
+    private var startX: CGFloat { fish.leftToRight ? -60 : canvasSize.width + 60 }
+    private var endX: CGFloat   { fish.leftToRight ?  canvasSize.width + 60 : -60 }
+
+    var body: some View {
+        Image(systemName: "fish.fill")
+            .font(.system(size: fish.size))
+            .foregroundStyle(fish.color.opacity(fish.opacity))
+            // SF Symbol "fish.fill" faces right by default; flip when the
+            // fish is travelling right-to-left so it points where it swims.
+            .scaleEffect(x: fish.leftToRight ? 1 : -1, y: 1)
+            .position(
+                x: isSwimming ? endX : startX,
+                y: canvasSize.height * fish.y
+            )
+            .animation(
+                .linear(duration: fish.duration)
+                    .repeatForever(autoreverses: false)
+                    .delay(fish.delay),
+                value: isSwimming
+            )
+            .onAppear { isSwimming = true }
     }
 }
 

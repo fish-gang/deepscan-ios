@@ -59,7 +59,7 @@ final class ClassifierViewModel {
 
         let handler = VNImageRequestHandler(
             cgImage: cgImage,
-            orientation: imageOrientation(from: image),
+            orientation: CGImagePropertyOrientation(image.imageOrientation),
             options: [:]
         )
 
@@ -111,25 +111,6 @@ final class ClassifierViewModel {
 
         isClassifying = false
         return nil
-    }
-
-    // MARK: - Image Orientation
-
-    // Vision needs the correct image orientation to process the image correctly.
-    // Photos taken in portrait mode have a different orientation flag
-    // than landscape — ignoring this causes incorrect classifications.
-    private func imageOrientation(from image: UIImage) -> CGImagePropertyOrientation {
-        switch image.imageOrientation {
-        case .up: return .up
-        case .down: return .down
-        case .left: return .left
-        case .right: return .right
-        case .upMirrored: return .upMirrored
-        case .downMirrored: return .downMirrored
-        case .leftMirrored: return .leftMirrored
-        case .rightMirrored: return .rightMirrored
-        @unknown default: return .up
-        }
     }
 
     // MARK: - Result Copy

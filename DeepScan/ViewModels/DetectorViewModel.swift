@@ -63,7 +63,7 @@ final class DetectorViewModel {
 
         let handler = VNImageRequestHandler(
             cgImage: cgImage,
-            orientation: imageOrientation(from: image),
+            orientation: CGImagePropertyOrientation(image.imageOrientation),
             options: [:]
         )
 
@@ -111,19 +111,4 @@ final class DetectorViewModel {
         ]
     }
 
-    // MARK: - Image Orientation
-
-    private func imageOrientation(from image: UIImage) -> CGImagePropertyOrientation {
-        switch image.imageOrientation {
-        case .up: return .up
-        case .down: return .down
-        case .left: return .left
-        case .right: return .right
-        case .upMirrored: return .upMirrored
-        case .downMirrored: return .downMirrored
-        case .leftMirrored: return .leftMirrored
-        case .rightMirrored: return .rightMirrored
-        @unknown default: return .up
-        }
-    }
 }
