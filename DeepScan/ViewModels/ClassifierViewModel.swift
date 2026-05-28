@@ -10,6 +10,11 @@ final class ClassifierViewModel {
     var isClassifying = false
     var errorMessage: String? = nil
 
+    // Last measured timing breakdown — read by the benchmark runner after
+    // each classify() call. Exposed instead of returning timing from the
+    // function so callers that don't care keep the existing API.
+    var lastTiming: Benchmark.Timing?
+
     @ObservationIgnored private var vnModel: VNCoreMLModel?
 
     init() {
@@ -35,6 +40,8 @@ final class ClassifierViewModel {
 
     // Returns the FishResult directly so callers never read stale @Published state.
     func classify(image: UIImage) async -> FishResult? {
+        var timing = Benchmark.Timing()
+
         print("🔍 Starting classification...")
         isClassifying = true
         result = nil
@@ -47,6 +54,9 @@ final class ClassifierViewModel {
             return nil
         }
 
+        // --- Preprocess: cgImage extraction + Vision handler setup ---
+        let preprocessStart = Benchmark.now()
+
         guard let cgImage = image.cgImage else {
             print("❌ Could not get CGImage from UIImage")
             errorMessage = "Failed to process image."
@@ -54,23 +64,33 @@ final class ClassifierViewModel {
             return nil
         }
 
+        let orientation = CGImagePropertyOrientation(image.imageOrientation)
         let request = VNCoreMLRequest(model: vnModel)
         request.imageCropAndScaleOption = .centerCrop
 
         let handler = VNImageRequestHandler(
             cgImage: cgImage,
-            orientation: CGImagePropertyOrientation(image.imageOrientation),
+            orientation: orientation,
             options: [:]
         )
 
+        timing.preprocessMs = Benchmark.msSince(preprocessStart)
+
         do {
-            // Run on background thread to avoid blocking UI.
-            // Read request.results inside the task so it's accessed on the
-            // same thread where handler.perform ran.
+            // --- Inference: Vision handler.perform() (includes Vision's
+            //     internal resize/normalize + the model forward pass on
+            //     CPU/GPU/Neural Engine, whichever computeUnits selected) ---
+            let inferenceStart = Benchmark.now()
+
             let observations: [VNClassificationObservation] = try await Task.detached(priority: .userInitiated) {
                 try handler.perform([request])
                 return request.results as? [VNClassificationObservation] ?? []
             }.value
+
+            timing.inferenceMs = Benchmark.msSince(inferenceStart)
+
+            // --- Postprocess: softmax + result construction ---
+            let postprocessStart = Benchmark.now()
 
             guard let top = observations.first else {
                 print("❌ No classification results")
@@ -88,19 +108,22 @@ final class ClassifierViewModel {
 
             print("✅ Top: \(top.identifier), confidence: \(confidence)")
 
-            // Resolve the user-facing copy. The model emits two sentinel labels
-            // ("no_fish", "unknown_fish") plus species labels we may or may not
-            // have curated descriptions for — each path gets its own message so
-            // we don't mislead the user about why we couldn't identify the fish.
-            let (fishName, fishDescription) = resolveCopy(for: top.identifier, confidence: confidence)
-
             let fishResult = FishResult(
-                fishName: fishName,
+                fishName: displayName(for: top.identifier),
                 confidence: confidence,
-                description: fishDescription,
                 image: image
             )
             result = fishResult
+
+            timing.postprocessMs = Benchmark.msSince(postprocessStart)
+            lastTiming = timing
+
+            print(String(
+                format: "⏱  [classifier] pre=%.2fms inf=%.2fms post=%.2fms total=%.2fms mem=%.1fMB",
+                timing.preprocessMs, timing.inferenceMs, timing.postprocessMs,
+                timing.totalMs, Benchmark.residentMemoryMB()
+            ))
+
             isClassifying = false
             return fishResult
 
@@ -113,91 +136,15 @@ final class ClassifierViewModel {
         return nil
     }
 
-    // MARK: - Result Copy
+    // MARK: - Display Name
 
-    private func resolveCopy(
-        for identifier: String,
-        confidence: Double
-    ) -> (name: String, description: String) {
-
-        let highConfidence = confidence >= 0.30
-
-        // Known species with curated copy and a confident match.
-        if highConfidence,
-           let name = displayName(for: identifier),
-           let description = description(for: identifier) {
-            return (name, description)
-        }
-
-        // Confident, but the label is a sentinel or an unmapped species —
-        // each one gets its own honest message.
-        if highConfidence {
-            switch identifier {
-            case "no_fish":
-                return (
-                    "No Fish Detected",
-                    "I don't see a fish in this photo. Try another shot — make sure the fish is the main subject and clearly visible."
-                )
-            case "unknown_fish":
-                return (
-                    "Unknown Species",
-                    "Looks like a fish, but it's not one of the species I recognize yet."
-                )
-            default:
-                return (
-                    "Unknown Species",
-                    "Couldn't identify the species. Try a clearer or closer photo."
-                )
-            }
-        }
-
-        // Low confidence across the board — model is genuinely unsure.
-        return (
-            "Unknown Species",
-            "Couldn't identify with sufficient confidence. Try a clearer or closer photo."
-        )
-    }
-
-    // MARK: - Display Names
-
-    // Maps scientific names (from model labels) to common names.
-    // Returns nil for any label we don't have curated copy for — the caller
-    // treats that as "Unknown Species" rather than surfacing the raw identifier.
-    private func displayName(for scientificName: String) -> String? {
-        let names: [String: String] = [
-            "acanthurus_coeruleus": "Blue Tang",
-            "amphiprion_ocellaris": "Clownfish",
-            "arothron_meleagris": "Guineafowl Puffer",
-            "carcharhinus_melanopterus": "Blacktip Reef Shark",
-            "chaetodon_lunula": "Raccoon Butterflyfish",
-            "chromis_viridis": "Green Chromis",
-            "naso_unicornis": "Bluespine Unicornfish",
-            "pomacanthus_imperator": "Emperor Angelfish",
-            "pterois_volitans": "Red Lionfish",
-            "rhinecanthus_aculeatus": "Picasso Triggerfish",
-            "scarus_ghobban": "Bluebarred Parrotfish",
-        ]
-        return names[scientificName]
-    }
-
-    // MARK: - Descriptions
-
-    // Fun facts for each species shown in ResultsView.
-    // Returns nil when no copy exists for the scientific name.
-    private func description(for scientificName: String) -> String? {
-        let descriptions: [String: String] = [
-            "acanthurus_coeruleus": "Blue Tang — a vibrant reef fish known for its sharp defensive spine near the tail. Found throughout tropical Atlantic waters.",
-            "amphiprion_ocellaris": "Clownfish — lives among sea anemone tentacles, protected by a special mucus coating that makes it immune to the anemone's sting.",
-            "arothron_meleagris": "Guineafowl Puffer — can inflate its body with water as a defense mechanism. Its skin and organs contain a powerful toxin.",
-            "carcharhinus_melanopterus": "Blacktip Reef Shark — recognizable by the black tips on its fins. Generally shy around humans and found in shallow reef waters.",
-            "chaetodon_lunula": "Raccoon Butterflyfish — named for its distinctive mask-like facial markings. Feeds on coral polyps and invertebrates.",
-            "chromis_viridis": "Green Chromis — one of the most common reef fish. Lives in large schools above coral heads for protection.",
-            "naso_unicornis": "Bluespine Unicornfish — named for the horn-like projection on its forehead. Has sharp blue spines near its tail for defense.",
-            "pomacanthus_imperator": "Emperor Angelfish — one of the most striking reef fish. Juveniles look completely different from adults with circular white markings.",
-            "pterois_volitans": "Red Lionfish — venomous invasive species in the Atlantic. Its spines deliver a painful sting but it is not aggressive.",
-            "rhinecanthus_aculeatus": "Picasso Triggerfish — named for its abstract markings resembling a Picasso painting. Can lock its dorsal spine upright for protection.",
-            "scarus_ghobban": "Bluebarred Parrotfish — uses its fused beak-like teeth to scrape algae off coral. The white sand on many tropical beaches is partly composed of coral ground up in their digestive systems.",
-        ]
-        return descriptions[scientificName]
+    // Transforms the raw model label into binomial scientific-name display
+    // form: replace underscore with space, capitalize the first letter only.
+    // e.g. `acanthurus_coeruleus` → `Acanthurus coeruleus`,
+    //      `no_fish` → `No fish`, `unknown_fish` → `Unknown fish`.
+    private func displayName(for identifier: String) -> String {
+        let spaced = identifier.replacingOccurrences(of: "_", with: " ")
+        guard let first = spaced.first else { return spaced }
+        return first.uppercased() + spaced.dropFirst()
     }
 }

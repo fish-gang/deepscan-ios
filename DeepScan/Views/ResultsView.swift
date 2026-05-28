@@ -15,7 +15,9 @@ struct ResultsView: View {
     @State private var showSavedConfirmation = false
     @State private var showSaveSheet = false
 
-    private var isUnknown: Bool { result.fishName == "Unknown Species" }
+    private var isUnknown: Bool {
+        result.fishName == "No fish" || result.fishName == "Unknown fish"
+    }
     private var isLowConfidence: Bool { result.confidence < 0.5 && !isUnknown }
     private var canPickAnother: Bool { onPickAnotherFish != nil }
 
@@ -28,7 +30,6 @@ struct ResultsView: View {
                 VStack(spacing: 24) {
                     heroPhoto
                     titleSection
-                    descriptionCard
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
@@ -86,7 +87,7 @@ struct ResultsView: View {
             HStack(spacing: 8) {
                 Image(systemName: "waveform.path.ecg")
                     .font(.footnote.weight(.semibold))
-                Text("\(Int(result.confidence * 100))% confidence")
+                Text(String(format: "%.2f%% confidence", result.confidence * 100))
                     .font(.subheadline.weight(.semibold))
             }
             .foregroundStyle(.white)
@@ -98,7 +99,7 @@ struct ResultsView: View {
                 .tint(OceanTheme.confidenceColor(result.confidence))
                 .padding(.top, 2)
                 .accessibilityLabel("Confidence")
-                .accessibilityValue("\(Int(result.confidence * 100)) percent")
+                .accessibilityValue(String(format: "%.2f percent", result.confidence * 100))
 
             if isLowConfidence {
                 Label(
@@ -117,32 +118,6 @@ struct ResultsView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    // MARK: - Description
-
-    private var descriptionCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label("Did you know?", systemImage: "sparkles")
-                .font(.headline)
-                .foregroundStyle(OceanTheme.seafoam)
-
-            Text(result.description)
-                .font(.body)
-                .foregroundStyle(.white.opacity(0.85))
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .background(
-            .ultraThinMaterial,
-            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(.white.opacity(0.15), lineWidth: 1)
-        )
-        .shadow(color: OceanTheme.deepOcean.opacity(0.35), radius: 10, y: 4)
     }
 
     // MARK: - Bottom Action Bar

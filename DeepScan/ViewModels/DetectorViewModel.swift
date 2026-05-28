@@ -8,6 +8,10 @@ final class DetectorViewModel {
 
     var errorMessage: String? = nil
 
+    // Last measured timing breakdown — populated on every detect() call,
+    // read by the benchmark runner.
+    var lastTiming: Benchmark.Timing?
+
     @ObservationIgnored private var vnModel: VNCoreMLModel?
 
     // Drops to a mock when no model is bundled. Lets the picker UI be
@@ -56,6 +60,12 @@ final class DetectorViewModel {
             return []
         }
 
+        var timing = Benchmark.Timing()
+
+        // --- Preprocess: Vision handler + request setup ---
+        let preprocessStart = Benchmark.now()
+
+        let orientation = CGImagePropertyOrientation(image.imageOrientation)
         let request = VNCoreMLRequest(model: vnModel)
         // Object detectors expect aspect-preserving resizing; .scaleFill
         // would distort and tank accuracy.
@@ -63,17 +73,27 @@ final class DetectorViewModel {
 
         let handler = VNImageRequestHandler(
             cgImage: cgImage,
-            orientation: CGImagePropertyOrientation(image.imageOrientation),
+            orientation: orientation,
             options: [:]
         )
 
+        timing.preprocessMs = Benchmark.msSince(preprocessStart)
+
         do {
+            // --- Inference: Vision handler.perform() ---
+            let inferenceStart = Benchmark.now()
+
             let observations: [VNRecognizedObjectObservation] = try await Task.detached(priority: .userInitiated) {
                 try handler.perform([request])
                 return request.results as? [VNRecognizedObjectObservation] ?? []
             }.value
 
-            return observations
+            timing.inferenceMs = Benchmark.msSince(inferenceStart)
+
+            // --- Postprocess: filter, convert coords, sort, truncate ---
+            let postprocessStart = Benchmark.now()
+
+            let detections = observations
                 .filter { $0.confidence >= 0.25 }
                 .map { obs in
                     // Vision uses bottom-left origin; flip Y so downstream
@@ -93,6 +113,17 @@ final class DetectorViewModel {
                 .sorted { $0.area > $1.area }
                 .prefix(8)
                 .map { $0 }
+
+            timing.postprocessMs = Benchmark.msSince(postprocessStart)
+            lastTiming = timing
+
+            print(String(
+                format: "⏱  [detector  ] pre=%.2fms inf=%.2fms post=%.2fms total=%.2fms mem=%.1fMB  boxes=%d",
+                timing.preprocessMs, timing.inferenceMs, timing.postprocessMs,
+                timing.totalMs, Benchmark.residentMemoryMB(), detections.count
+            ))
+
+            return detections
 
         } catch {
             print("❌ Detection error: \(error)")
