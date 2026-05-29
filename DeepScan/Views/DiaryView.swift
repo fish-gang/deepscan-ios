@@ -124,6 +124,12 @@ struct DiaryRowView: View {
 
     let entry: DiaryEntry
 
+    // Prefer the friendly common name (matching the results / detail screens),
+    // falling back to the raw model name for species we have no data for.
+    private var displayName: String {
+        FishSpecies.lookup(scientificName: entry.fishName)?.commonName ?? entry.fishName
+    }
+
     var body: some View {
         HStack(spacing: 14) {
 
@@ -148,7 +154,7 @@ struct DiaryRowView: View {
 
             // Text info
             VStack(alignment: .leading, spacing: 4) {
-                Text(entry.fishName)
+                Text(displayName)
                     .font(.headline)
                     .foregroundStyle(.white)
 

@@ -10,16 +10,29 @@ struct DiaryDetailView: View {
 
     @State private var showDeleteConfirmation = false
 
+    private var species: FishSpecies? {
+        FishSpecies.lookup(scientificName: entry.fishName)
+    }
+
     var body: some View {
         ZStack {
             OceanTheme.backgroundGradient
                 .ignoresSafeArea()
 
+            BubbleBackground()
+                .ignoresSafeArea()
+
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 20) {
                     heroPhoto
                     titleSection
-                    metadataCard
+
+                    if let species {
+                        SpeciesDetailSection(species: species)
+                    }
+
+                    FactsBox(items: metadataItems)
+                        .appearIn(delay: 0.26)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
@@ -63,7 +76,7 @@ struct DiaryDetailView: View {
                     .resizable()
                     .scaledToFit()
                     .frame(maxWidth: .infinity)
-                    .frame(maxHeight: 360)
+                    .frame(maxHeight: 320)
             } else {
                 Color.white.opacity(0.08)
                     .frame(height: 240)
@@ -90,71 +103,41 @@ struct DiaryDetailView: View {
 
     private var titleSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(entry.fishName)
-                .font(.title)
-                .fontWeight(.bold)
-                .fontDesign(.rounded)
-                .foregroundStyle(.white)
-                .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: 8) {
-                Circle()
-                    .fill(OceanTheme.confidenceColor(entry.confidence))
-                    .frame(width: 8, height: 8)
-                Text("\(Int(entry.confidence * 100))% confident")
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(OceanTheme.confidenceColor(entry.confidence))
-            }
-
-            ProgressView(value: entry.confidence)
-                .tint(OceanTheme.confidenceColor(entry.confidence))
-                .padding(.top, 2)
-                .accessibilityLabel("Confidence")
-                .accessibilityValue("\(Int(entry.confidence * 100)) percent")
+            SpeciesTitleView(rawName: entry.fishName)
+            ConfidenceMeter(confidence: entry.confidence)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // MARK: - Metadata Card
+    // MARK: - Diary Metadata
 
-    private var metadataCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Label(
-                entry.date.formatted(date: .complete, time: .shortened),
-                systemImage: "calendar"
+    // The entry-specific log (when / where / notes), shown in the same combined
+    // box style as the species facts so the whole screen reads as one set.
+    private var metadataItems: [FactItem] {
+        var items: [FactItem] = [
+            FactItem(
+                icon: "calendar",
+                label: "Logged",
+                text: entry.date.formatted(date: .complete, time: .shortened),
+                color: OceanTheme.seafoam
             )
-            .font(.subheadline)
-            .foregroundStyle(.white.opacity(0.85))
-            .fixedSize(horizontal: false, vertical: true)
-
-            if let location = entry.location {
-                Label(location, systemImage: "mappin.and.ellipse")
-                    .font(.subheadline)
-                    .foregroundStyle(.white.opacity(0.85))
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if let notes = entry.notes {
-                Label {
-                    Text(notes)
-                        .fixedSize(horizontal: false, vertical: true)
-                } icon: {
-                    Image(systemName: "note.text")
-                }
-                .font(.subheadline)
-                .foregroundStyle(.white.opacity(0.85))
-            }
+        ]
+        if let location = entry.location {
+            items.append(FactItem(
+                icon: "mappin.and.ellipse",
+                label: "Location",
+                text: location,
+                color: OceanTheme.aqua
+            ))
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(20)
-        .background(
-            .ultraThinMaterial,
-            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(.white.opacity(0.15), lineWidth: 1)
-        )
-        .shadow(color: OceanTheme.deepOcean.opacity(0.35), radius: 10, y: 4)
+        if let notes = entry.notes {
+            items.append(FactItem(
+                icon: "note.text",
+                label: "Notes",
+                text: notes,
+                color: OceanTheme.sandy
+            ))
+        }
+        return items
     }
 }
