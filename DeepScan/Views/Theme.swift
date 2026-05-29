@@ -36,6 +36,8 @@ enum OceanTheme {
     static let coral     = Color(hex: "FF6B6B")
     static let seagrass  = Color(hex: "52B788")
     static let sandy     = Color(hex: "F4A261")
+    static let sunshine  = Color(hex: "FFD166")
+    static let urchin    = Color(hex: "C77DFF")
 
     // MARK: - Gradients
     static let backgroundGradient = LinearGradient(
