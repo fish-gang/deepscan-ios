@@ -6,8 +6,8 @@ import SwiftUI
 
 // MARK: - Species Title
 
-// Emoji + friendly common name with the scientific name beneath. Falls back to
-// the raw model name when there's no species entry (e.g. an unknown fish).
+// Friendly common name with the scientific name beneath. Falls back to the raw
+// model name when there's no species entry (e.g. an unknown fish).
 struct SpeciesTitleView: View {
     let rawName: String
 
@@ -16,21 +16,14 @@ struct SpeciesTitleView: View {
     var body: some View {
         Group {
             if let species {
-                HStack(alignment: .center, spacing: 12) {
-                    Text(species.emoji)
-                        .font(.system(size: 44))
-                        .modifier(SwimmingMotion())
-                        .accessibilityHidden(true)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(species.commonName)
-                            .font(.system(.title, design: .rounded, weight: .heavy))
-                            .foregroundStyle(.white)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Text(species.scientificName)
-                            .font(.subheadline.italic())
-                            .foregroundStyle(.white.opacity(0.7))
-                    }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(species.commonName)
+                        .font(.system(.title, design: .rounded, weight: .heavy))
+                        .foregroundStyle(.white)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(species.scientificName)
+                        .font(.subheadline.italic())
+                        .foregroundStyle(.white.opacity(0.7))
                 }
             } else {
                 Text(rawName)
@@ -387,21 +380,6 @@ private struct AppearIn: ViewModifier {
                     shown = true
                 }
             }
-    }
-}
-
-// MARK: - Swimming Motion
-
-// Gentle sway + bob driven by TimelineView so the title emoji feels alive
-// without needing repeating-animation state plumbing.
-struct SwimmingMotion: ViewModifier {
-    func body(content: Content) -> some View {
-        TimelineView(.animation) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
-            content
-                .rotationEffect(.degrees(sin(t * 1.4) * 6))
-                .offset(y: sin(t * 1.0) * 3)
-        }
     }
 }
 
