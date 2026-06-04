@@ -5,12 +5,13 @@ Identify reef fish instantly. DeepScan is an iOS app for snorkelers and aquarium
 ## Features
 
 - **Fish detection** — locates multiple fish in a single photo and draws bounding boxes (YOLO-World based)
-- **Species classification** — identifies 11 reef fish species with confidence scores:
-  Blue Tang · Clownfish · Guineafowl Puffer · Blacktip Reef Shark · Raccoon Butterflyfish · Green Chromis · Bluespine Unicornfish · Emperor Angelfish · Red Lionfish · Picasso Triggerfish · Bluebarred Parrotfish
+- **Species classification** — identifies 12 reef fish species with confidence scores:
+  Atlantic Blue Tang · Ocellaris Clownfish · Guineafowl Pufferfish · Blacktip Reef Shark · Raccoon Butterflyfish · Blue-Green Chromis · Bluespine Unicornfish · Emperor Angelfish · Red Lionfish · Lagoon (Picasso) Triggerfish · Blue-Barred Parrotfish · Moon Wrasse
 - **Multi-fish picker** — when several fish are detected, choose which one to identify
-- **Camera capture & gallery import** — full-screen camera UI or pick from Photos
+- **Camera capture & gallery import** — full-screen camera UI (front/back camera) or pick from Photos
 - **Snorkel diary** — save catches with name, confidence, location, notes, and thumbnail (SwiftData persistence)
-- **Fun facts** — habitat, behavior, and identifying traits for each species
+- **Diary map** — saved catches plotted as pins on a map, geocoded from their location text (MapKit)
+- **Species reference cards** — common & scientific name, family, origin, how to spot it, and a fun fact for every species, with a reference illustration shown alongside your photo
 - **Ocean-themed UI** — gradient backgrounds, aqua palette, animated bubbles
 
 ## Tech stack
@@ -21,6 +22,7 @@ Identify reef fish instantly. DeepScan is an iOS app for snorkelers and aquarium
 - **ML:** CoreML + Vision
 - **Camera:** AVFoundation
 - **Photos:** PhotosUI
+- **Maps & geocoding:** MapKit + CoreLocation
 - **No third-party dependencies** — pure Apple frameworks. No CocoaPods, SPM packages, or Carthage to set up.
 
 ## Requirements
@@ -38,9 +40,11 @@ Identify reef fish instantly. DeepScan is an iOS app for snorkelers and aquarium
 ```
 DeepScan/
 ├── App/             # @main entry point (DeepScanApp.swift)
-├── Views/           # SwiftUI screens (Home, Camera, PhotoPreview, FishPicker, Results, Diary…)
+├── Views/           # SwiftUI screens (Home, Camera, PhotoPreview, FishPicker,
+│                    #   Results, Diary, DiaryDetail, Map) + Theme & shared SpeciesViews
 ├── ViewModels/      # Classifier, Detector, Camera view models
-├── Models/          # DiaryEntry (SwiftData), FishResult, DetectedFish, ImageCrop
+├── Models/          # DiaryEntry (SwiftData), FishResult, DetectedFish, ImageCrop,
+│                    #   FishSpecies (reference data), Benchmark (perf instrumentation)
 ├── ML/              # DeepScanClassifier.mlpackage, FishDetector.mlpackage
 └── Resources/       # Assets.xcassets
 DeepScanTests/       # Unit tests
@@ -116,8 +120,8 @@ Both are declared in the project's Info settings; iOS will surface the permissio
 
 Two CoreML packages ship in `DeepScan/ML/`:
 
-- **`DeepScanClassifier.mlpackage`** — 11 species + 2 sentinel labels (`no_fish`, `unknown_fish`). Returns logits; the app applies softmax. Center-crop scaling.
-- **`FishDetector.mlpackage`** — YOLO-World detector. Confidence threshold 0.25, aspect-preserving scaling. Returns up to 8 boxes sorted by area.
+- **`DeepScanClassifier.mlpackage`** — 12 species + 2 sentinel labels (`no_fish`, `unknown_fish`). Labels are scientific (binomial) names, looked up against `FishSpecies` for friendly display. Returns logits; the app applies softmax. Center-crop scaling.
+- **`FishDetector.mlpackage`** — YOLO-World detector. Confidence threshold 0.25, aspect-preserving scaling. Returns up to 8 boxes sorted by area (largest first).
 
 Both models load at app launch and run fully on-device — no network calls.
 
